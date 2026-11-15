@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Intelligent Fake Review Detection — Live Demo</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0B1220; --panel:#131C2E; --panel2:#0F1729; --border:#1F2A40;
+    --text:#E7ECF3; --muted:#8695B2; --faint:#5A6884;
+    --suspicious:#E24B4A; --suspicious-dim:#3A1A1A; --suspicious-bg:#241318;
+    --genuine:#3FCB92; --genuine-dim:#123326; --genuine-bg:#0F231C;
+    --amber:#EF9F27;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--bg);color:var(--text);font-family:'IBM Plex Sans',sans-serif;}
+  .wrap{max-width:1040px;margin:0 auto;padding:32px 24px 60px;}
+  .eyebrow{font-family:'IBM Plex Mono',monospace;font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--faint);margin:0 0 6px;}
+  h1{font-size:24px;font-weight:600;margin:0 0 6px;}
+  .sub{color:var(--muted);font-size:14px;margin:0 0 28px;max-width:560px;line-height:1.55;}
+
+  .grid{display:grid;grid-template-columns:1.1fr 1fr;gap:20px;}
+  @media(max-width:800px){.grid{grid-template-columns:1fr;}}
+
+  .card{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:20px 22px;}
+  .card h2{font-size:13px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:0 0 16px;font-family:'IBM Plex Mono',monospace;}
+
+  label{display:block;font-size:13px;color:var(--muted);margin:14px 0 6px;}
+  label:first-of-type{margin-top:0;}
+  textarea,select,input[type=number]{
+    width:100%;background:var(--panel2);border:1px solid var(--border);border-radius:6px;
+    color:var(--text);font-family:'IBM Plex Sans',sans-serif;font-size:14px;padding:9px 10px;
+  }
+  textarea{resize:vertical;min-height:64px;line-height:1.5;}
+  textarea:focus,select:focus,input:focus{outline:2px solid #2C4470;border-color:#2C4470;}
+
+  .row2{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+  .stars{display:flex;gap:6px;margin-top:4px;}
+  .star-btn{background:var(--panel2);border:1px solid var(--border);border-radius:6px;width:38px;height:34px;color:var(--muted);cursor:pointer;font-family:'IBM Plex Mono',monospace;font-size:13px;}
+  .star-btn.active{background:var(--amber);border-color:var(--amber);color:#412402;font-weight:600;}
+
+  .toggle-row{display:flex;align-items:center;justify-content:space-between;background:var(--panel2);border:1px solid var(--border);border-radius:6px;padding:9px 12px;margin-top:4px;}
+  .toggle-row span{font-size:13px;color:var(--text);}
+  .switch{position:relative;width:38px;height:20px;background:#2A3550;border-radius:20px;cursor:pointer;flex-shrink:0;}
+  .switch.on{background:var(--genuine);}
+  .switch::after{content:'';position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:#fff;transition:left .15s;}
+  .switch.on::after{left:20px;}
+
+  .btn{width:100%;margin-top:18px;background:#1B2A45;border:1px solid #2C4470;color:var(--text);
+    font-family:'IBM Plex Mono',monospace;font-size:13px;font-weight:600;letter-spacing:.04em;
+    padding:11px;border-radius:7px;cursor:pointer;text-transform:uppercase;}
+  .btn:hover{background:#213255;}
+
+  .verdict{display:flex;flex-direction:column;align-items:center;text-align:center;padding:18px 10px 22px;border-bottom:1px solid var(--border);margin-bottom:16px;}
+  .stamp{font-family:'IBM Plex Mono',monospace;font-weight:700;font-size:22px;letter-spacing:.06em;
+    border:3px solid var(--genuine);color:var(--genuine);padding:8px 22px;border-radius:8px;
+    transform:rotate(-3deg);display:inline-block;}
+  .stamp.suspicious{border-color:var(--suspicious);color:var(--suspicious);}
+  .prob{margin-top:12px;font-family:'IBM Plex Mono',monospace;font-size:13px;color:var(--muted);}
+  .prob b{color:var(--text);}
+  .gauge{width:100%;height:8px;background:var(--panel2);border-radius:5px;margin-top:10px;overflow:hidden;border:1px solid var(--border);}
+  .gauge-fill{height:100%;background:var(--genuine);width:5%;transition:width .3s, background .3s;}
+
+  .factor{margin-bottom:11px;}
+  .factor-top{display:flex;justify-content:space-between;font-size:12.5px;margin-bottom:4px;}
+  .factor-top .name{color:var(--text);}
+  .factor-top .wt{font-family:'IBM Plex Mono',monospace;color:var(--muted);}
+  .factor-bar{height:6px;background:var(--panel2);border-radius:4px;overflow:hidden;border:1px solid var(--border);}
+  .factor-fill{height:100%;border-radius:4px;}
+  .factor-fill.pos{background:var(--suspicious);}
+  .factor-fill.neg{background:var(--genuine);}
+  .factor-note{font-size:11.5px;color:var(--faint);margin-top:3px;}
+
+  .pipeline{display:flex;gap:6px;margin-top:22px;flex-wrap:wrap;}
+  .stage{flex:1;min-width:110px;background:var(--panel);border:1px solid var(--border);border-radius:8px;
+    padding:10px 12px;font-size:12px;color:var(--muted);}
+  .stage b{display:block;color:var(--text);font-size:12.5px;margin-bottom:2px;}
+  .stage.done{border-color:#2C4470;background:#101B31;}
+  .stage.done b{color:#7AA6E8;}
+
+  .empty{color:var(--faint);font-size:13px;text-align:center;padding:30px 10px;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <p class="eyebrow">Anurag University · Dept. of Information Technology</p>
+  <h1>Intelligent Fake Review Detection</h1>
+  <p class="sub">Enter a purchase, its review, and its return outcome. The model combines NLP sentiment features with purchase/return behaviour — not text alone — to flag reviews that look inconsistent with what actually happened to the product.</p>
+
+  <div class="grid">
+    <div class="card">
+      <h2>1 · Purchase &amp; review input</h2>
+
+      <label for="text">Review text</label>
+      <textarea id="text" placeholder="e.g. Amazing product! Exceeded my expectations, works perfectly.">Amazing product! Exceeded my expectations, works perfectly.</textarea>
+
+      <label>Star rating</label>
+      <div class="stars" id="stars">
+        <button class="star-btn" data-v="1">1</button>
+        <button class="star-btn" data-v="2">2</button>
+        <button class="star-btn" data-v="3">3</button>
+        <button class="star-btn" data-v="4">4</button>
+        <button class="star-btn active" data-v="5">5</button>
+      </div>
+
+      <div class="row2">
+        <div>
+          <label>Was the product returned?</label>
+          <div class="toggle-row">
+            <span id="retLabel">No</span>
+            <div class="switch" id="retSwitch"></div>
+          </div>
+        </div>
+        <div>
+          <label>Reviewer posted many reviews today?</label>
+          <div class="toggle-row">
+            <span id="burstLabel">No</span>
+            <div class="switch" id="burstSwitch"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="row2" id="returnDetails" style="opacity:.35;pointer-events:none;">
+        <div>
+          <label for="reason">Return reason</label>
+          <select id="reason">
+            <option value="quality_issue">Quality issue</option>
+            <option value="not_as_described">Not as described</option>
+            <option value="defective">Defective</option>
+            <option value="wrong_size">Wrong size</option>
+            <option value="changed_mind">Changed mind</option>
+            <option value="arrived_late">Arrived late</option>
+          </select>
+        </div>
+        <div>
+          <label for="days">Days to return</label>
+          <input type="number" id="days" min="0" max="30" value="2">
+        </div>
+      </div>
+
+      <button class="btn" id="run">Analyse review ↗</button>
+    </div>
+
+    <div class="card" id="resultCard">
+      <h2>2 · Model prediction</h2>
+      <div id="resultBody">
+        <div class="empty">Run an analysis to see the verdict and the evidence behind it.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="pipeline" id="pipeline">
+    <div class="stage" data-s="0"><b>Purchase</b>logged in system</div>
+    <div class="stage" data-s="1"><b>Review submitted</b>text + rating</div>
+    <div class="stage" data-s="2"><b>Return check</b>status + reason</div>
+    <div class="stage" data-s="3"><b>Feature extraction</b>NLP + behaviour</div>
+    <div class="stage" data-s="4"><b>ML prediction</b>genuine / suspicious</div>
+  </div>
+</div>
+
+<script>
+const POS = ["amazing","love","excellent","great","perfect","best","superb","recommend","durable","fast","exceeded","expectations","happy","good","nice","awesome","fantastic","smooth","reliable"];
+const NEG = ["terrible","disappointed","poor","broke","waste","damaged","cheap","flimsy","bad","worst","defective","stopped","failed","returning","issue","issues","not","never","junk"];
+const QUALITY_REASONS = ["quality_issue","not_as_described","defective"];
+
+function sentimentScore(text){
+  const tokens = text.toLowerCase().replace(/[^a-z0-9'\s]/g," ").split(/\s+/).filter(Boolean);
+  if(!tokens.length) return 0;
+  let score = 0;
+  tokens.forEach(t=>{ if(POS.includes(t)) score++; else if(NEG.includes(t)) score--; });
+  const norm = score / tokens.length;
+  return Math.max(-1, Math.min(1, norm*4));
+}
+
+function extractFeatures(state){
+  const sentiment = sentimentScore(state.text);
+  const ratingNorm = (state.rating - 3) / 2;
+  const qualityReturn = state.wasReturned && QUALITY_REASONS.includes(state.reason) ? 1 : 0;
+  const mismatch = Math.abs(sentiment - ratingNorm);
+  const positiveAfterQualityReturn = (qualityReturn === 1 && (sentiment > 0.15 || state.rating >= 4)) ? 1 : 0;
+  const fastReturn = (state.wasReturned && state.days > 0 && state.days <= 3) ? 1 : 0;
+  return {sentiment, ratingNorm, qualityReturn, mismatch, positiveAfterQualityReturn, fastReturn, burst: state.burst?1:0};
+}
+
+function scoreModel(f){
+  // Weights approximate the trained gradient-boosted model's learned
+  // feature importances (see ml/train_model.py): the dominant signal is
+  // a positive review text/rating paired with a quality-related return.
+  let z = -4.0;
+  z += 8.0 * f.positiveAfterQualityReturn;
+  z += 2.4 * f.burst;
+  z += 0.6 * f.mismatch;
+  z += 0.3 * f.fastReturn;
+  const prob = 1 / (1 + Math.exp(-z));
+  return prob;
+}
+
+function contributions(f){
+  return [
+    {name:"Positive review after quality-related return", val: f.positiveAfterQualityReturn, weight: 8.0*f.positiveAfterQualityReturn,
+     note: f.positiveAfterQualityReturn ? "Product was returned for a quality issue, yet the review reads positive — the core inconsistency signal." : "No conflict between return reason and review tone."},
+    {name:"Reviewer activity burst", val: f.burst, weight: 2.4*f.burst,
+     note: f.burst ? "Reviewer posted multiple reviews the same day." : "Normal posting pattern."},
+    {name:"Sentiment vs. rating mismatch", val: f.mismatch, weight: 0.6*f.mismatch,
+     note: f.mismatch > 0.5 ? "Review text tone and star rating disagree noticeably." : "Text tone and rating are broadly consistent."},
+    {name:"Fast return after purchase", val: f.fastReturn, weight: 0.3*f.fastReturn,
+     note: f.fastReturn ? "Returned within 3 days of purchase." : "No unusually fast return."},
+  ];
+}
+
+function setPipeline(stage){
+  document.querySelectorAll('.stage').forEach(el=>{
+    el.classList.toggle('done', parseInt(el.dataset.s) <= stage);
+  });
+}
+setPipeline(1);
+
+let rating = 5, wasReturned = false, burst = false;
+
+document.getElementById('stars').addEventListener('click', e=>{
+  const btn = e.target.closest('.star-btn'); if(!btn) return;
+  rating = parseInt(btn.dataset.v);
+  document.querySelectorAll('.star-btn').forEach(b=>b.classList.toggle('active', b===btn));
+});
+
+const retSwitch = document.getElementById('retSwitch');
+const retLabel = document.getElementById('retLabel');
+const returnDetails = document.getElementById('returnDetails');
+retSwitch.addEventListener('click', ()=>{
+  wasReturned = !wasReturned;
+  retSwitch.classList.toggle('on', wasReturned);
+  retLabel.textContent = wasReturned ? "Yes" : "No";
+  returnDetails.style.opacity = wasReturned ? "1" : ".35";
+  returnDetails.style.pointerEvents = wasReturned ? "auto" : "none";
+});
+
+const burstSwitch = document.getElementById('burstSwitch');
+const burstLabel = document.getElementById('burstLabel');
+burstSwitch.addEventListener('click', ()=>{
+  burst = !burst;
+  burstSwitch.classList.toggle('on', burst);
+  burstLabel.textContent = burst ? "Yes" : "No";
+});
+
+document.getElementById('run').addEventListener('click', ()=>{
+  const text = document.getElementById('text').value || "";
+  const reason = document.getElementById('reason').value;
+  const days = parseInt(document.getElementById('days').value || "0");
+
+  setPipeline(4);
+
+  const state = {text, rating, wasReturned, reason, days, burst};
+  const f = extractFeatures(state);
+  const prob = scoreModel(f);
+  const suspicious = prob >= 0.5;
+  const contribs = contributions(f).sort((a,b)=>b.weight-a.weight);
+  const maxWeight = Math.max(...contribs.map(c=>c.weight), 0.1);
+
+  const html = `
+    <div class="verdict">
+      <div class="stamp ${suspicious?'suspicious':''}">${suspicious?'Suspicious':'Genuine'}</div>
+      <div class="prob">Suspicious probability: <b>${(prob*100).toFixed(0)}%</b></div>
+      <div class="gauge"><div class="gauge-fill" style="width:${(prob*100).toFixed(0)}%; background:${suspicious?'var(--suspicious)':'var(--genuine)'}"></div></div>
+    </div>
+    <h2 style="margin-top:0">Contributing signals</h2>
+    ${contribs.map(c=>`
+      <div class="factor">
+        <div class="factor-top"><span class="name">${c.name}</span><span class="wt">${c.weight.toFixed(2)}</span></div>
+        <div class="factor-bar"><div class="factor-fill ${c.weight>0?'pos':'neg'}" style="width:${Math.max(4,(c.weight/maxWeight*100)).toFixed(0)}%"></div></div>
+        <div class="factor-note">${c.note}</div>
+      </div>
+    `).join('')}
+  `;
+  document.getElementById('resultBody').innerHTML = html;
+});
+</script>
+</body>
+</html>
