@@ -145,8 +145,15 @@ for i in range(N):
         "label": "suspicious" if suspicious else "genuine",
     })
 
+
+from pathlib import Path
+
+# Convert generated rows into a DataFrame
 df = pd.DataFrame(rows)
-out_path = "/home/claude/fake_review_detection/data/reviews_dataset.csv"
-df.to_csv(out_path, index=False)
-print(f"Saved {len(df)} rows to {out_path}")
-print(df["label"].value_counts(normalize=True))
+
+# Save dataset in the current data folder
+output_path = Path(__file__).resolve().parent / "reviews_dataset.csv"
+
+df.to_csv(output_path, index=False)
+
+print(f"Dataset saved successfully at: {output_path}")

@@ -160,119 +160,176 @@
 </div>
 
 <script>
-const POS = ["amazing","love","excellent","great","perfect","best","superb","recommend","durable","fast","exceeded","expectations","happy","good","nice","awesome","fantastic","smooth","reliable"];
-const NEG = ["terrible","disappointed","poor","broke","waste","damaged","cheap","flimsy","bad","worst","defective","stopped","failed","returning","issue","issues","not","never","junk"];
-const QUALITY_REASONS = ["quality_issue","not_as_described","defective"];
-
-function sentimentScore(text){
-  const tokens = text.toLowerCase().replace(/[^a-z0-9'\s]/g," ").split(/\s+/).filter(Boolean);
-  if(!tokens.length) return 0;
-  let score = 0;
-  tokens.forEach(t=>{ if(POS.includes(t)) score++; else if(NEG.includes(t)) score--; });
-  const norm = score / tokens.length;
-  return Math.max(-1, Math.min(1, norm*4));
-}
-
-function extractFeatures(state){
-  const sentiment = sentimentScore(state.text);
-  const ratingNorm = (state.rating - 3) / 2;
-  const qualityReturn = state.wasReturned && QUALITY_REASONS.includes(state.reason) ? 1 : 0;
-  const mismatch = Math.abs(sentiment - ratingNorm);
-  const positiveAfterQualityReturn = (qualityReturn === 1 && (sentiment > 0.15 || state.rating >= 4)) ? 1 : 0;
-  const fastReturn = (state.wasReturned && state.days > 0 && state.days <= 3) ? 1 : 0;
-  return {sentiment, ratingNorm, qualityReturn, mismatch, positiveAfterQualityReturn, fastReturn, burst: state.burst?1:0};
-}
-
-function scoreModel(f){
-  // Weights approximate the trained gradient-boosted model's learned
-  // feature importances (see ml/train_model.py): the dominant signal is
-  // a positive review text/rating paired with a quality-related return.
-  let z = -4.0;
-  z += 8.0 * f.positiveAfterQualityReturn;
-  z += 2.4 * f.burst;
-  z += 0.6 * f.mismatch;
-  z += 0.3 * f.fastReturn;
-  const prob = 1 / (1 + Math.exp(-z));
-  return prob;
-}
-
-function contributions(f){
-  return [
-    {name:"Positive review after quality-related return", val: f.positiveAfterQualityReturn, weight: 8.0*f.positiveAfterQualityReturn,
-     note: f.positiveAfterQualityReturn ? "Product was returned for a quality issue, yet the review reads positive — the core inconsistency signal." : "No conflict between return reason and review tone."},
-    {name:"Reviewer activity burst", val: f.burst, weight: 2.4*f.burst,
-     note: f.burst ? "Reviewer posted multiple reviews the same day." : "Normal posting pattern."},
-    {name:"Sentiment vs. rating mismatch", val: f.mismatch, weight: 0.6*f.mismatch,
-     note: f.mismatch > 0.5 ? "Review text tone and star rating disagree noticeably." : "Text tone and rating are broadly consistent."},
-    {name:"Fast return after purchase", val: f.fastReturn, weight: 0.3*f.fastReturn,
-     note: f.fastReturn ? "Returned within 3 days of purchase." : "No unusually fast return."},
-  ];
-}
-
-function setPipeline(stage){
-  document.querySelectorAll('.stage').forEach(el=>{
-    el.classList.toggle('done', parseInt(el.dataset.s) <= stage);
+function setPipeline(stage) {
+  document.querySelectorAll(".stage").forEach((el) => {
+    el.classList.toggle("done", Number(el.dataset.s) <= stage);
   });
 }
+
 setPipeline(1);
 
-let rating = 5, wasReturned = false, burst = false;
+let rating = 5;
+let wasReturned = false;
+let burst = false;
 
-document.getElementById('stars').addEventListener('click', e=>{
-  const btn = e.target.closest('.star-btn'); if(!btn) return;
-  rating = parseInt(btn.dataset.v);
-  document.querySelectorAll('.star-btn').forEach(b=>b.classList.toggle('active', b===btn));
+document.getElementById("stars").addEventListener("click", (event) => {
+  const button = event.target.closest(".star-btn");
+  if (!button) return;
+
+  rating = Number(button.dataset.v);
+  document.querySelectorAll(".star-btn").forEach((star) => {
+    star.classList.toggle("active", star === button);
+  });
 });
 
-const retSwitch = document.getElementById('retSwitch');
-const retLabel = document.getElementById('retLabel');
-const returnDetails = document.getElementById('returnDetails');
-retSwitch.addEventListener('click', ()=>{
+const retSwitch = document.getElementById("retSwitch");
+const retLabel = document.getElementById("retLabel");
+const returnDetails = document.getElementById("returnDetails");
+
+retSwitch.addEventListener("click", () => {
   wasReturned = !wasReturned;
-  retSwitch.classList.toggle('on', wasReturned);
+  retSwitch.classList.toggle("on", wasReturned);
   retLabel.textContent = wasReturned ? "Yes" : "No";
   returnDetails.style.opacity = wasReturned ? "1" : ".35";
   returnDetails.style.pointerEvents = wasReturned ? "auto" : "none";
 });
 
-const burstSwitch = document.getElementById('burstSwitch');
-const burstLabel = document.getElementById('burstLabel');
-burstSwitch.addEventListener('click', ()=>{
+const burstSwitch = document.getElementById("burstSwitch");
+const burstLabel = document.getElementById("burstLabel");
+
+burstSwitch.addEventListener("click", () => {
   burst = !burst;
-  burstSwitch.classList.toggle('on', burst);
+  burstSwitch.classList.toggle("on", burst);
   burstLabel.textContent = burst ? "Yes" : "No";
 });
 
-document.getElementById('run').addEventListener('click', ()=>{
-  const text = document.getElementById('text').value || "";
-  const reason = document.getElementById('reason').value;
-  const days = parseInt(document.getElementById('days').value || "0");
+function escapeHtml(value) {
+  return String(value).replace(/[&<>"']/g, (character) => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    '"': "&quot;",
+    "'": "&#39;"
+  })[character]);
+}
 
-  setPipeline(4);
+function displayFeatureName(name) {
+  return name.replaceAll("_", " ");
+}
 
-  const state = {text, rating, wasReturned, reason, days, burst};
-  const f = extractFeatures(state);
-  const prob = scoreModel(f);
-  const suspicious = prob >= 0.5;
-  const contribs = contributions(f).sort((a,b)=>b.weight-a.weight);
-  const maxWeight = Math.max(...contribs.map(c=>c.weight), 0.1);
+document.getElementById("run").addEventListener("click", async () => {
+  const runButton = document.getElementById("run");
+  const resultBody = document.getElementById("resultBody");
 
-  const html = `
-    <div class="verdict">
-      <div class="stamp ${suspicious?'suspicious':''}">${suspicious?'Suspicious':'Genuine'}</div>
-      <div class="prob">Suspicious probability: <b>${(prob*100).toFixed(0)}%</b></div>
-      <div class="gauge"><div class="gauge-fill" style="width:${(prob*100).toFixed(0)}%; background:${suspicious?'var(--suspicious)':'var(--genuine)'}"></div></div>
-    </div>
-    <h2 style="margin-top:0">Contributing signals</h2>
-    ${contribs.map(c=>`
-      <div class="factor">
-        <div class="factor-top"><span class="name">${c.name}</span><span class="wt">${c.weight.toFixed(2)}</span></div>
-        <div class="factor-bar"><div class="factor-fill ${c.weight>0?'pos':'neg'}" style="width:${Math.max(4,(c.weight/maxWeight*100)).toFixed(0)}%"></div></div>
-        <div class="factor-note">${c.note}</div>
+  const reviewText = document.getElementById("text").value.trim();
+  const reason = document.getElementById("reason").value;
+  const days = Number(document.getElementById("days").value || 0);
+
+  if (!reviewText) {
+    resultBody.innerHTML = '<div class="empty">Please enter review text before analysing.</div>';
+    return;
+  }
+
+  if (!Number.isFinite(days) || days < 0 || days > 30) {
+    resultBody.innerHTML = '<div class="empty">Please enter a return period between 0 and 30 days.</div>';
+    return;
+  }
+
+  const payload = {
+    review_text: reviewText,
+    rating: rating,
+    was_returned: wasReturned ? 1 : 0,
+    return_reason: reason,
+    days_to_return: days,
+    review_burst: burst ? 1 : 0
+  };
+
+  runButton.disabled = true;
+  runButton.textContent = "Analysing...";
+  resultBody.innerHTML = '<div class="empty">Sending review to the machine-learning model...</div>';
+  setPipeline(1);
+
+  try {
+    setPipeline(2);
+
+    const response = await fetch("/predict", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(payload)
+    });
+
+    setPipeline(3);
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.error || "The prediction request failed.");
+    }
+
+    const probability = Number(data.suspicious_probability);
+    const suspicious = data.prediction === "suspicious";
+    const features = data.features || {};
+
+    if (!Number.isFinite(probability)) {
+      throw new Error("The server returned an invalid probability.");
+    }
+
+    const probabilityPercent = (probability * 100).toFixed(1);
+    const featureRows = Object.entries(features).map(([name, value]) => {
+      const shownValue = typeof value === "number"
+        ? Number(value.toFixed(4)).toString()
+        : String(value);
+
+      return `
+        <div class="factor">
+          <div class="factor-top">
+            <span class="name">${escapeHtml(displayFeatureName(name))}</span>
+            <span class="wt">${escapeHtml(shownValue)}</span>
+          </div>
+          <div class="factor-bar">
+            <div class="factor-fill ${Number(value) > 0 ? "pos" : "neg"}"
+                 style="width:${Math.max(4, Math.min(100, Math.abs(Number(value)) * 100))}%"></div>
+          </div>
+        </div>
+      `;
+    }).join("");
+
+    const verdictHtml = `
+      <div class="verdict">
+        <div class="stamp ${suspicious ? "suspicious" : ""}">
+          ${suspicious ? "Suspicious" : "Genuine"}
+        </div>
+        <div class="prob">
+          Suspicious probability: <b>${probabilityPercent}%</b>
+        </div>
+        <div class="gauge">
+          <div class="gauge-fill"
+               style="width:${probabilityPercent}%;background:${suspicious ? "var(--suspicious)" : "var(--genuine)"}">
+          </div>
+        </div>
       </div>
-    `).join('')}
-  `;
-  document.getElementById('resultBody').innerHTML = html;
+      <h2 style="margin-top:0">Extracted ML features</h2>
+      ${featureRows || '<div class="empty">No feature values were returned.</div>'}
+    `;
+
+    resultBody.innerHTML = verdictHtml;
+    setPipeline(4);
+
+  } catch (error) {
+    resultBody.innerHTML = `
+      <div class="empty">
+        <strong>Could not analyse this review.</strong><br>
+        ${escapeHtml(error.message)}<br><br>
+        Make sure the Flask server is running and try again.
+      </div>
+    `;
+    setPipeline(1);
+  } finally {
+    runButton.disabled = false;
+    runButton.textContent = "Analyse review ↗";
+  }
 });
 </script>
 </body>

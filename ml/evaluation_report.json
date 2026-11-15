@@ -27,7 +27,7 @@
         "support": 800.0
       }
     },
-    "roc_auc": 0.9181722005208334,
+    "roc_auc": 0.9181722005208333,
     "confusion_matrix": [
       [
         655,
@@ -80,17 +80,17 @@
     ]
   },
   "feature_importances": {
-    "positive_after_quality_return": 0.768670128610904,
-    "review_burst": 0.18912901042117042,
-    "days_to_return": 0.01654531448435946,
-    "text_sentiment": 0.0074707330805939475,
-    "sentiment_rating_mismatch": 0.006935345697299114,
-    "review_length": 0.0058289919500855375,
-    "fast_return": 0.002143312283226733,
-    "rating": 0.0013491215284460025,
-    "rating_norm": 0.00087726511090015,
-    "quality_return": 0.000493769908665731,
-    "exclamations": 0.0004753464061616369,
-    "was_returned": 8.166051818731557e-05
+    "positive_after_quality_return": 0.7686701286109029,
+    "review_burst": 0.18912901042117014,
+    "days_to_return": 0.01657479622475718,
+    "text_sentiment": 0.007470733080594865,
+    "sentiment_rating_mismatch": 0.006935345697298645,
+    "review_length": 0.00582899195008591,
+    "fast_return": 0.002143312283226841,
+    "rating": 0.0013471822072946445,
+    "rating_norm": 0.000879204432051651,
+    "exclamations": 0.0004753464061617182,
+    "quality_return": 0.0004553492400404592,
+    "was_returned": 9.059944641502934e-05
   }
 }
